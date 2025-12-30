@@ -1,0 +1,15 @@
+node_modules
+dist
+out
+.DS_Store
+.eslintcache
+*.log*
+
+# Downloaded videos and generated content
+downloads/
+output/
+thumbnails/
+*.mp4
+*.webm
+*.mkv
+*.avi

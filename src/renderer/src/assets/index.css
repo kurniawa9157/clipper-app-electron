@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-gray-900 text-white;
+    background: linear-gradient(135deg, #0a0f1c 0%, #1a0f2e 100%);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .card-glass {
+    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-md;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-primary text-white font-bold py-3 px-6 rounded-lg;
+    @apply hover:opacity-90 transition-all duration-200;
+    @apply shadow-lg shadow-primary-500/20;
+  }
+  
+  .btn-secondary {
+    @apply border border-white/20 text-white font-medium py-2 px-4 rounded-lg;
+    @apply hover:bg-white/10 transition-all duration-200;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10;
+    @apply text-white placeholder-gray-400;
+    @apply focus:outline-none focus:border-primary-400/50 focus:ring-2 focus:ring-primary-400/20;
+    @apply transition-all duration-200;
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-white/5;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-white/20 rounded-full;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/30;
+  }
+}
