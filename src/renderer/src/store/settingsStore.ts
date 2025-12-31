@@ -9,6 +9,7 @@ interface Settings {
   defaultGenre: string
   defaultClipDuration: number
   defaultClipCount: number
+  cropPosition: 'auto' | 'left' | 'center' | 'right'  // Smart auto-detect or manual
 }
 
 interface SettingsStore {
@@ -23,7 +24,8 @@ const defaultSettings: Settings = {
   outputDirectory: '',
   defaultGenre: 'auto',
   defaultClipDuration: 60,
-  defaultClipCount: 10
+  defaultClipCount: 10,
+  cropPosition: 'auto'  // Smart auto-detection by default
 }
 
 export const useSettingsStore = create<SettingsStore>()(

@@ -14,6 +14,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [defaultGenre, setDefaultGenre] = useState(settings.defaultGenre)
   const [defaultDuration, setDefaultDuration] = useState(settings.defaultClipDuration)
   const [defaultCount, setDefaultCount] = useState(settings.defaultClipCount)
+  const [cropPosition, setCropPosition] = useState(settings.cropPosition)
   const [showSuccess, setShowSuccess] = useState(false)
 
   const handleSave = () => {
@@ -23,7 +24,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       outputDirectory: outputDir,
       defaultGenre,
       defaultClipDuration: defaultDuration,
-      defaultClipCount: defaultCount
+      defaultClipCount: defaultCount,
+      cropPosition
     })
     
     setShowSuccess(true)
@@ -135,6 +137,36 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           </div>
         </div>
 
+        {/* Crop Position */}
+        <div className="mb-8">
+          <h3 className="text-lg font-bold mb-4">🎯 Smart Crop</h3>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              Crop Position
+            </label>
+            <select
+              className="input-field bg-gray-800 text-white"
+              value={cropPosition}
+              onChange={(e) => setCropPosition(e.target.value as any)}
+            >
+              <option value="auto">🤖 Smart Auto-Detect (Recommended)</option>
+              <option value="center">📍 Center (Manual)</option>
+              <option value="left">👈 Left (Manual)</option>
+              <option value="right">👉 Right (Manual)</option>
+            </select>
+          </div>
+
+          <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <h4 className="text-sm font-bold mb-2">ℹ️ How it works</h4>
+            <ul className="text-xs text-gray-400 space-y-1">
+              <li>• <strong>Auto:</strong> AI detects where the action is (face, movement)</li>
+              <li>• <strong>Center:</strong> Always crop center of video</li>
+              <li>• <strong>Left/Right:</strong> Manual position if speaker is on side</li>
+            </ul>
+          </div>
+        </div>
+
         {/* Default Values */}
         <div className="mb-8">
           <h3 className="text-lg font-bold mb-4">Default Values</h3>
@@ -197,6 +229,48 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           </div>
         </div>
 
+        {/* OpenAI API Key Section */}
+        <div className="mb-8">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <FaKey className="text-purple-400" />
+            OpenAI API Key (For Auto-Transcription)
+          </h3>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              OpenAI API Key (Optional)
+            </label>
+            <input
+              type="password"
+              className="input-field font-mono text-sm"
+              placeholder="sk-proj-..."
+              value={openaiKey}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-2">
+              Get your API key from{' '}
+              <a 
+                href="https://platform.openai.com/api-keys" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:underline"
+              >
+                OpenAI Platform
+              </a>
+            </p>
+          </div>
+
+          <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+            <h4 className="text-sm font-bold mb-2">ℹ️ Auto-Transcription</h4>
+            <ul className="text-xs text-gray-400 space-y-1">
+              <li>• Optional: Only needed for auto-transcription</li>
+              <li>• Without: You manually paste transcript</li>
+              <li>• With: Automatic Whisper AI transcription</li>
+              <li>• Cost: ~$0.006 per minute of audio</li>
+            </ul>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex gap-3">
           <button 
@@ -212,48 +286,6 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           >
             Cancel
           </button>
-        </div>
-      </div>
-
-      {/* OpenAI API Key Section */}
-      <div className="mb-8">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <FaKey className="text-purple-400" />
-          OpenAI API Key (For Auto-Transcription)
-        </h3>
-        
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            OpenAI API Key (Optional)
-          </label>
-          <input
-            type="password"
-            className="input-field font-mono text-sm"
-            placeholder="sk-proj-..."
-            value={openaiKey}
-            onChange={(e) => setOpenaiKey(e.target.value)}
-          />
-          <p className="text-xs text-gray-400 mt-2">
-            Get your API key from{' '}
-            <a 
-              href="https://platform.openai.com/api-keys" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:underline"
-            >
-              OpenAI Platform
-            </a>
-          </p>
-        </div>
-
-        <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-          <h4 className="text-sm font-bold mb-2">ℹ️ Auto-Transcription</h4>
-          <ul className="text-xs text-gray-400 space-y-1">
-            <li>• Optional: Only needed for auto-transcription</li>
-            <li>• Without: You manually paste transcript</li>
-            <li>• With: Automatic Whisper AI transcription</li>
-            <li>• Cost: ~$0.006 per minute of audio</li>
-          </ul>
         </div>
       </div>
     </div>

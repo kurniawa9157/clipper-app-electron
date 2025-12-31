@@ -166,16 +166,32 @@ app.whenReady().then(() => {
     }
   })
 
-  // Dialog handlers
+  // Dialog API - folder selection
   ipcMain.handle('dialog:selectFolder', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory']
     })
+    return result.filePaths[0] || ''
+  })
+
+  // Dialog API - move file
+  ipcMain.handle('dialog:moveFile', async (_event, sourcePath: string, destPath: string) => {
+    const fs = await import('fs/promises')
+    const path = await import('path')
     
-    if (!result.canceled && result.filePaths.length > 0) {
-      return result.filePaths[0]
-    }
-    return null
+    // Ensure destination directory exists
+    await fs.mkdir(path.dirname(destPath), { recursive: true })
+    
+    // Move file (rename)
+    await fs.rename(sourcePath, destPath)
+    return destPath
+  })
+
+  // Dialog API - delete file
+  ipcMain.handle('dialog:deleteFile', async (_event, filePath: string) => {
+    const fs = await import('fs/promises')
+    await fs.unlink(filePath)
+    return true
   })
 
   createWindow()

@@ -41,7 +41,9 @@ const api = {
   
   // Dialog API
   dialog: {
-    selectFolder: () => ipcRenderer.invoke('dialog:selectFolder')
+    selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
+    moveFile: (sourcePath: string, destPath: string) => ipcRenderer.invoke('dialog:moveFile', sourcePath, destPath),
+    deleteFile: (filePath: string) => ipcRenderer.invoke('dialog:deleteFile', filePath)
   }
 }
 

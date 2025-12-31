@@ -1,5 +1,6 @@
 // Custom hook for using clipper services
 import { useState, useCallback } from 'react'
+import { useSettingsStore } from '../store/settingsStore'
 
 export interface ProcessingStatus {
   stage: 'idle' | 'downloading' | 'analyzing' | 'generating' | 'complete' | 'error'
@@ -17,9 +18,12 @@ export interface ClipData {
   viralHook: string
   thumbnailPath?: string
   outputPath?: string
+  previewPath?: string  // Temp preview path
+  isKept?: boolean  // Whether user kept this clip
 }
 
 export function useClipperService() {
+  const { settings } = useSettingsStore()
   const [status, setStatus] = useState<ProcessingStatus>({
     stage: 'idle',
     progress: 0,
@@ -155,7 +159,7 @@ export function useClipperService() {
     try {
       if (!videoPath) throw new Error('Video not downloaded')
       
-      console.log('Generating clip:', clip.suggestedTitle)
+      console.log('Generating clip preview:', clip.suggestedTitle)
       
       // Create filename from AI-suggested title
       // Sanitize filename: remove special chars, limit length
@@ -171,49 +175,99 @@ export function useClipperService() {
       }
       
       const timestamp = Date.now() // Use timestamp number directly
-      const outputFilename = `${sanitizedTitle}_${timestamp}.mp4`
+      const previewFilename = `preview_${sanitizedTitle}_${timestamp}.mp4`
       
-      console.log('Output filename:', outputFilename)
+      // Generate to TEMP folder first for preview
+      const tempPath = `temp/${previewFilename}`
       
-      // Use output directory from settings or default to current working directory
-      const settingsData = localStorage.getItem('clipper-settings')
-      const outputDir = settingsData
-        ? JSON.parse(settingsData).state?.settings?.outputDirectory || ''
-        : ''
-      
-      // Construct full output path
-      // If outputDir is set, use it; otherwise use 'output' folder in current directory
-      const fullOutputPath = outputDir 
-        ? `${outputDir}/${outputFilename}`.replace(/\\/g, '/')
-        : `output/${outputFilename}`
-      
-      console.log('Full output path:', fullOutputPath)
+      console.log('Preview path:', tempPath)
       
       window.api.ffmpeg.onClipProgress((progress) => {
         setStatus({ 
           stage: 'generating', 
           progress: 70 + (progress * 0.3), 
-          message: `Rendering: ${clip.suggestedTitle.substring(0, 30)}... ${Math.round(progress)}%` 
+          message: `Creating preview: ${clip.suggestedTitle.substring(0, 30)}... ${Math.round(progress)}%` 
         })
       })
       
-      const clipPath = await window.api.ffmpeg.createClip(videoPath, {
+      const previewPath = await window.api.ffmpeg.createClip(videoPath, {
         startTime: clip.startTime,
         duration: clip.endTime - clip.startTime,
-        outputPath: fullOutputPath
+        outputPath: tempPath,
+        viralHook: clip.viralHook,
+        cropPosition: settings.cropPosition
       })
       
-      // Update clip with output path
+      // Update clip with preview path (not final output yet)
       setClips(prev => prev.map((c, i) => 
-        i === index ? { ...c, outputPath: clipPath } : c
+        i === index ? { ...c, previewPath, isKept: false } : c
       ))
       
-      return clipPath
+      return previewPath
     } catch (error: any) {
       console.error('Generate clip error:', error)
       throw new Error(`Failed to generate clip: ${error.message}`)
     }
-  }, [videoPath])
+  }, [videoPath, settings.cropPosition])
+
+  const keepClip = useCallback(async (clip: ClipData, index: number) => {
+    try {
+      if (!clip.previewPath) throw new Error('No preview to keep')
+
+      console.log('Keeping clip:', clip.suggestedTitle)
+
+      // Move from temp to final output location
+      const sanitizedTitle = clip.suggestedTitle
+        .replace(/[<>:"/\\|?*]/g, '')
+        .replace(/\s+/g, '_')
+        .trim()
+        .substring(0, 50) || `Clip_${index + 1}`
+      
+      const timestamp = Date.now()
+      const outputFilename = `${sanitizedTitle}_${timestamp}.mp4`
+      
+      const settingsData = localStorage.getItem('clipper-settings')
+      const outputDir = settingsData
+        ? JSON.parse(settingsData).state?.settings?.outputDirectory || ''
+        : ''
+      
+      const finalPath = outputDir 
+        ? `${outputDir}/${outputFilename}`.replace(/\\/g, '/')
+        : `output/${outputFilename}`
+
+      // Use IPC to move file from temp to final
+      await window.api.dialog.moveFile(clip.previewPath, finalPath)
+      
+      // Update clip status
+      setClips(prev => prev.map((c, i) => 
+        i === index ? { ...c, outputPath: finalPath, isKept: true } : c
+      ))
+
+      console.log('Clip saved to:', finalPath)
+    } catch (error: any) {
+      throw new Error(`Failed to keep clip: ${error.message}`)
+    }
+  }, [])
+
+  const deleteClip = useCallback(async (clip: ClipData, index: number) => {
+    try {
+      if (!clip.previewPath) return
+
+      console.log('Deleting preview:', clip.suggestedTitle)
+
+      // Delete temp file
+      await window.api.dialog.deleteFile(clip.previewPath)
+      
+      // Update clip status
+      setClips(prev => prev.map((c, i) => 
+        i === index ? { ...c, previewPath: undefined, isKept: false } : c
+      ))
+
+      console.log('Preview deleted')
+    } catch (error: any) {
+      console.error('Delete error:', error)
+    }
+  }, [])
 
   const reset = useCallback(() => {
     setStatus({ stage: 'idle', progress: 0, message: '' })
@@ -226,6 +280,8 @@ export function useClipperService() {
     clips,
     processVideo,
     generateClip,
+    keepClip,
+    deleteClip,
     reset
   }
 }

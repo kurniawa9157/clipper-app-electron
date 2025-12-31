@@ -35,6 +35,8 @@ export interface ClipperAPI {
       duration: number
       outputPath: string
       filters?: string[]
+      viralHook?: string
+      cropPosition?: 'auto' | 'left' | 'center' | 'right'
     }) => Promise<string>
     getMetadata: (videoPath: string) => Promise<any>
     generateThumbnails: (videoPath: string, timestamps: number[]) => Promise<string[]>
@@ -44,7 +46,9 @@ export interface ClipperAPI {
     transcribe: (audioPath: string, apiKey: string) => Promise<string>
   }
   dialog: {
-    selectFolder: () => Promise<string | null>
+    selectFolder: () => Promise<string>
+    moveFile: (sourcePath: string, destPath: string) => Promise<string>
+    deleteFile: (filePath: string) => Promise<boolean>
   }
 }
 

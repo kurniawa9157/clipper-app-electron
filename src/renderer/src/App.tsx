@@ -17,7 +17,7 @@ function App() {
   const [clipDuration, setClipDuration] = useState(settings.defaultClipDuration)
   const [clipCount, setClipCount] = useState(settings.defaultClipCount)
 
-  const { status, clips, processVideo, generateClip, reset } = useClipperService()
+  const { status, clips, processVideo, generateClip, keepClip, deleteClip, reset } = useClipperService()
 
   const handleStartClipping = async () => {
     if (!youtubeUrl) {
@@ -49,9 +49,24 @@ function App() {
   const handleGenerateClip = async (clip: any, index: number) => {
     try {
       await generateClip(clip, index)
-      alert(`Clip ${index + 1} generated successfully!`)
     } catch (error: any) {
-      alert(`Failed to generate clip: ${error.message}`)
+      alert(`Failed to generate preview: ${error.message}`)
+    }
+  }
+
+  const handleKeepClip = async (clip: any, index: number) => {
+    try {
+      await keepClip(clip, index)
+    } catch (error: any) {
+      alert(`Failed to save clip: ${error.message}`)
+    }
+  }
+
+  const handleDeleteClip = async (clip: any, index: number) => {
+    try {
+      await deleteClip(clip, index)
+    } catch (error: any) {
+      alert(`Failed to delete preview: ${error.message}`)
     }
   }
 
@@ -132,7 +147,7 @@ function App() {
               📍 Pilih Genre Konten (Optional)
             </label>
             <select
-              className="input-field"
+              className="input-field bg-gray-800 text-white"
               value={genre}
               onChange={(e) => setGenre(e.target.value)}
               disabled={isProcessing}
@@ -214,7 +229,7 @@ function App() {
             <label className="block text-sm font-medium mb-2">
               Mode Output
             </label>
-            <select className="input-field" disabled={isProcessing}>
+            <select className="input-field bg-gray-800 text-white" disabled={isProcessing}>
               <option>Tik Tok / Movie</option>
               <option>Instagram Reels</option>
               <option>YouTube Shorts</option>
@@ -245,7 +260,12 @@ function App() {
         <ProcessingQueue status={status} />
 
         {/* Clip Preview */}
-        <ClipPreview clips={clips} onGenerateClip={handleGenerateClip} />
+        <ClipPreview 
+          clips={clips} 
+          onGenerateClip={handleGenerateClip}
+          onKeepClip={handleKeepClip}
+          onDeleteClip={handleDeleteClip}
+        />
       </div>
 
       {/* Settings Modal */}

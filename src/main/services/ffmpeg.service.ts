@@ -9,6 +9,8 @@ export interface ClipOptions {
   duration: number
   outputPath: string
   filters?: string[]
+  viralHook?: string  // Optional viral hook text to overlay
+  cropPosition?: 'auto' | 'left' | 'center' | 'right'  // Crop position preference
 }
 
 export interface SubtitleOptions {
@@ -53,85 +55,129 @@ export class FFmpegService {
     clipOptions: ClipOptions,
     onProgress?: (progress: number) => void
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      // Get video metadata first to calculate crop
-      ffmpeg.ffprobe(videoPath, (err, metadata) => {
-        if (err) {
-          reject(err)
-          return
-        }
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Get video metadata first to calculate crop
+        ffmpeg.ffprobe(videoPath, async (err, metadata) => {
+          if (err) {
+            reject(err)
+            return
+          }
 
-        const videoStream = metadata.streams.find(s => s.codec_type === 'video')
-        if (!videoStream || !videoStream.width || !videoStream.height) {
-          reject(new Error('Could not determine video dimensions'))
-          return
-        }
+          const videoStream = metadata.streams.find(s => s.codec_type === 'video')
+          if (!videoStream || !videoStream.width || !videoStream.height) {
+            reject(new Error('Could not determine video dimensions'))
+            return
+          }
 
-        const inputWidth = videoStream.width
-        const inputHeight = videoStream.height
+          const inputWidth = videoStream.width
+          const inputHeight = videoStream.height
 
-        // Calculate 9:16 crop (vertical format)
-        const cropFilter = this.getCropFilter(inputWidth, inputHeight)
-        
-        // Anti-copyright filters (simplified for stability)
-        const antiCopyrightFilters = [
-          cropFilter,
-          // Slight speed change (0.98x - 1.02x) - subtle but effective
-          `setpts=${(0.98 + Math.random() * 0.04).toFixed(3)}*PTS`
-        ]
-        
-        // Combine with user filters if provided
-        const filters = clipOptions.filters || []
-        const allFilters = [...antiCopyrightFilters, ...filters]
+          // Determine crop position
+          let cropPosition: 'left' | 'center' | 'right' = 'center'
+          
+          if (clipOptions.cropPosition === 'auto') {
+            // Smart auto-detection
+            console.log('Running smart crop detection...')
+            cropPosition = await this.detectCropPosition(videoPath)
+          } else if (clipOptions.cropPosition) {
+            // Manual position
+            cropPosition = clipOptions.cropPosition as 'left' | 'center' | 'right'
+            console.log('Using manual crop position:', cropPosition)
+          }
 
-        console.log('Creating clip with output path:', clipOptions.outputPath)
+          // Calculate 9:16 crop (vertical format) with smart positioning
+          const cropFilter = this.getCropFilter(inputWidth, inputHeight, cropPosition)
+          
+          // Anti-copyright filters (simplified for stability)
+          const antiCopyrightFilters = [
+            cropFilter,
+            // Slight speed change (0.98x - 1.02x) - subtle but effective
+            `setpts=${(0.98 + Math.random() * 0.04).toFixed(3)}*PTS`
+          ]
+          
+          // Add viral hook overlay if provided
+          if (clipOptions.viralHook) {
+            const hookFilter = this.getViralHookFilter(clipOptions.viralHook)
+            antiCopyrightFilters.push(hookFilter)
+          }
+          
+          // Combine with user filters if provided
+          const filters = clipOptions.filters || []
+          const allFilters = [...antiCopyrightFilters, ...filters]
 
-        let command = ffmpeg(videoPath)
-          .setStartTime(clipOptions.startTime)
-          .setDuration(clipOptions.duration)
-          .videoFilters(allFilters)
-          .output(clipOptions.outputPath)
-          .on('progress', (progress) => {
-            if (onProgress && progress.percent) {
-              onProgress(progress.percent)
-            }
-          })
-          .on('end', () => {
-            resolve(clipOptions.outputPath)
-          })
-          .on('error', (err) => {
-            reject(new Error(`FFmpeg error: ${err.message}`))
-          })
+          console.log('Creating clip with output path:', clipOptions.outputPath)
+          console.log('Crop position:', cropPosition)
+          if (clipOptions.viralHook) {
+            console.log('Adding viral hook:', clipOptions.viralHook)
+          }
 
-        command.run()
-      })
+          let command = ffmpeg(videoPath)
+            .setStartTime(clipOptions.startTime)
+            .setDuration(clipOptions.duration)
+            .videoFilters(allFilters)
+            .output(clipOptions.outputPath)
+            .on('progress', (progress) => {
+              if (onProgress && progress.percent) {
+                onProgress(progress.percent)
+              }
+            })
+            .on('end', () => {
+              resolve(clipOptions.outputPath)
+            })
+            .on('error', (err) => {
+              reject(new Error(`FFmpeg error: ${err.message}`))
+            })
+
+          command.run()
+        })
+      } catch (error: any) {
+        reject(error)
+      }
     })
   }
 
   /**
-   * Crop video to 9:16 (vertical format)
+   * Calculate 9:16 crop filter with smart positioning
    */
-  getCropFilter(inputWidth: number, inputHeight: number, centerX?: number, centerY?: number): string {
+  getCropFilter(inputWidth: number, inputHeight: number, position: 'left' | 'center' | 'right' = 'center'): string {
+    // Target 9:16 aspect ratio for vertical video
     const targetAspect = 9 / 16
     const inputAspect = inputWidth / inputHeight
 
     let cropWidth: number
     let cropHeight: number
+    let xOffset: number
+    let yOffset: number
 
     if (inputAspect > targetAspect) {
-      // Video is too wide
+      // Video is wider than 9:16, crop width
       cropHeight = inputHeight
-      cropWidth = cropHeight * targetAspect
+      cropWidth = Math.floor(inputHeight * targetAspect)
+      yOffset = 0
+
+      // Calculate x offset based on position
+      switch (position) {
+        case 'left':
+          xOffset = 0
+          break
+        case 'right':
+          xOffset = inputWidth - cropWidth
+          break
+        case 'center':
+        default:
+          xOffset = Math.floor((inputWidth - cropWidth) / 2)
+          break
+      }
     } else {
-      // Video is too tall
+      // Video is taller than 9:16, crop height
       cropWidth = inputWidth
-      cropHeight = cropWidth / targetAspect
+      cropHeight = Math.floor(inputWidth / targetAspect)
+      xOffset = 0
+      yOffset = Math.floor((inputHeight - cropHeight) / 2)
     }
 
-    const x = centerX ?? (inputWidth - cropWidth) / 2
-    const y = centerY ?? (inputHeight - cropHeight) / 2
-
-    return `crop=${Math.floor(cropWidth)}:${Math.floor(cropHeight)}:${Math.floor(x)}:${Math.floor(y)}`
+    return `crop=${cropWidth}:${cropHeight}:${xOffset}:${yOffset}`
   }
 
   /**
@@ -242,6 +288,36 @@ export class FFmpegService {
   }
 
   /**
+   * Create viral hook text overlay filter
+   * Displays AI-generated hook text at top of video with fade-in animation
+   */
+  getViralHookFilter(hookText: string): string {
+    // Escape special characters for FFmpeg
+    const escapedText = hookText
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/:/g, '\\:')
+      .replace(/\[/g, '\\[')
+      .replace(/\]/g, '\\]')
+    
+    // Viral hook overlay with eye-catching styling
+    return `drawtext=` +
+      `text='${escapedText}':` +
+      `fontfile=/Windows/Fonts/arialbd.ttf:` + // Bold Arial
+      `fontsize=60:` +
+      `fontcolor=white:` +
+      `borderw=4:` +
+      `bordercolor=black:` +
+      `x=(w-text_w)/2:` + // Centered horizontally
+      `y=80:` + // 80px from top
+      `shadowcolor=black@0.8:` +
+      `shadowx=3:` +
+      `shadowy=3:` +
+      `enable='between(t,0,2)':` + // Show for first 2 seconds
+      `alpha='if(lt(t,0.3),t/0.3,if(lt(t,1.7),1,(2-t)/0.3))'` // Fade in/out animation
+  }
+
+  /**
    * Convert color name to FFmpeg hex format
    */
   private colorToHex(color: string): string {
@@ -255,6 +331,90 @@ export class FFmpegService {
     }
 
     return colorMap[color.toLowerCase()] || 'FFFFFF'
+  }
+
+  /**
+   * Smart crop detection - analyzes video to find best crop position
+   * Uses FFmpeg cropdetect filter to detect active content area
+   */
+  async detectCropPosition(videoPath: string): Promise<'left' | 'center' | 'right'> {
+    return new Promise((resolve) => {
+      ffmpeg.ffprobe(videoPath, (err, metadata) => {
+        if (err) {
+          console.warn('Cropdetect failed, using center:', err.message)
+          resolve('center')
+          return
+        }
+
+        const videoStream = metadata.streams.find(s => s.codec_type === 'video')
+        if (!videoStream || !videoStream.width) {
+          resolve('center')
+          return
+        }
+
+        const width = videoStream.width
+        const duration = metadata.format?.duration || 10
+        const sampleTime = Math.min(duration * 0.3, 5) // Sample first 30% or 5 seconds
+
+        let cropData = ''
+        
+        // Run cropdetect filter to analyze video
+        ffmpeg(videoPath)
+          .outputOptions([
+            '-vf', 'cropdetect=24:2',  // Detect crop area
+            '-t', sampleTime.toString(),  // Sample duration
+            '-f', 'null'  // No output file
+          ])
+          .output('-')
+          .on('stderr', (line) => {
+            cropData += line
+          })
+          .on('end', () => {
+            // Parse cropdetect output to find x position
+            const cropMatches = cropData.match(/crop=(\d+):(\d+):(\d+):(\d+)/g)
+            
+            if (cropMatches && cropMatches.length > 0) {
+              // Get most common crop position from samples
+              const xPositions: number[] = []
+              
+              cropMatches.forEach(match => {
+                const parts = match.match(/(\d+)/g)
+                if (parts && parts.length >= 3) {
+                  xPositions.push(parseInt(parts[2])) // x position
+                }
+              })
+
+              if (xPositions.length > 0) {
+                // Calculate average x position
+                const avgX = xPositions.reduce((a, b) => a + b, 0) / xPositions.length
+                const relativePos = avgX / width
+
+                // Determine position based on where content is
+                if (relativePos < 0.25) {
+                  console.log('Smart crop: detected LEFT position')
+                  resolve('left')
+                } else if (relativePos > 0.75) {
+                  console.log('Smart crop: detected RIGHT position')
+                  resolve('right')
+                } else {
+                  console.log('Smart crop: detected CENTER position')
+                  resolve('center')
+                }
+                return
+              }
+            }
+
+            // Fallback to center if detection inconclusive
+            console.log('Smart crop: using CENTER (fallback)')
+            resolve('center')
+          })
+          .on('error', (err) => {
+            console.warn('Cropdetect error, using center:', err.message)
+            resolve('center')
+          })
+          .run()
+      })
+    })
   }
 
   /**
