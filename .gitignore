@@ -5,6 +5,9 @@ out
 .eslintcache
 *.log*
 
+# Local tool binaries
+resources/binaries/*.exe
+
 # Downloaded videos and generated content
 downloads/
 output/
